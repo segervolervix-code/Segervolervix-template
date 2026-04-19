@@ -1,0 +1,13 @@
+name: AINPC
+main: com.segervolervix.ainpc.AINPCPlugin
+version: 1.0.0
+api-version: 1.19
+author: Segervolervix
+commands:
+  npc:
+    description: AI NPC companion command
+    usage: /npc <spawn|ask|follow|stop|remove>
+    permission: ainpc.use
+permissions:
+  ainpc.use:
+    default: op
