@@ -1,3 +1,4 @@
+// src/index.js
 import {
     Client,
     GatewayIntentBits,
@@ -6,6 +7,8 @@ import {
 } from "discord.js";
 import fetch from "node-fetch";
 import "dotenv/config";
+import { buildSystemPrompt } from "./systemPrompt.js";
+import { addToHistory, getHistoryForChannel } from "./history.js";
 
 const client = new Client({
     intents: [
@@ -20,7 +23,7 @@ const CHAT_URL = "https://segervolervix.space/api/chat";
 const IMAGE_URL = "https://segervolervix.space/api/imagine";
 const API_KEY = process.env.API_KEY;
 
-// Random questions
+// Random questions for /random-question
 const QUESTIONS = [
     "If you could learn any skill instantly, what would it be?",
     "What’s a technology you think will change the world soon?",
@@ -33,37 +36,50 @@ client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}`);
 });
 
-// Respond when pinged
+// Mention-based chat
 client.on(Events.MessageCreate, async (msg) => {
     if (msg.author.bot) return;
 
-    // If the bot is mentioned
-    if (msg.mentions.has(client.user)) {
-        const prompt = msg.content.replace(`<@${client.user.id}>`, "").trim();
-        if (!prompt) return msg.reply("Please include a message after mentioning me.");
+    // Always track history
+    addToHistory(msg);
 
-        await msg.channel.send("💬 Thinking...");
+    // Only respond if the bot is mentioned
+    if (!msg.mentions.has(client.user)) return;
 
-        try {
-            const res = await fetch(CHAT_URL, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${API_KEY}`
-                },
-                body: JSON.stringify({ message: prompt })
-            });
+    const prompt = msg.content.replace(`<@${client.user.id}>`, "").trim();
+    if (!prompt) {
+        return msg.reply("Please include a message after mentioning me.");
+    }
 
-            const data = await res.json();
+    const history = getHistoryForChannel(msg.channel.id);
+    const systemPrompt = buildSystemPrompt(client, msg, history);
 
-            if (data.reply) {
-                msg.reply(`**AI:** ${data.reply}`);
-            } else {
-                msg.reply("❌ API returned an invalid response.");
-            }
-        } catch (err) {
-            msg.reply("❌ Network error while contacting the AI.");
+    const thinkingMsg = await msg.channel.send("💬 Thinking...");
+
+    try {
+        const res = await fetch(CHAT_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${API_KEY}`
+            },
+            body: JSON.stringify({
+                system: systemPrompt,
+                message: prompt
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.reply) {
+            await thinkingMsg.delete().catch(() => {});
+            await msg.reply(`**AI:** ${data.reply}`);
+        } else {
+            await thinkingMsg.edit("❌ API returned an invalid response.");
         }
+    } catch (err) {
+        console.error("Chat API error:", err);
+        await thinkingMsg.edit("❌ Network error while contacting the AI.");
     }
 });
 
@@ -73,7 +89,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // /imagine
     if (interaction.commandName === "imagine") {
-        const prompt = interaction.options.getString("prompt");
+        const prompt = interaction.options.getString("prompt", true);
 
         await interaction.reply("🎨 Generating image...");
 
@@ -97,22 +113,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const buffer = Buffer.from(await imgRes.arrayBuffer());
             const file = new AttachmentBuilder(buffer, { name: "image.png" });
 
-            interaction.editReply({ content: "🖼️ Image generated:", files: [file] });
-
+            await interaction.editReply({ content: "🖼️ Image generated:", files: [file] });
         } catch (err) {
-            interaction.editReply("❌ Failed to generate image.");
+            console.error("Image API error:", err);
+            await interaction.editReply("❌ Failed to generate image.");
         }
     }
 
     // /random-question
     if (interaction.commandName === "random-question") {
         const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
-        interaction.reply(`🎲 **Random Question:**\n${q}`);
+        await interaction.reply(`🎲 **Random Question:**\n${q}`);
     }
 
     // /source-code
     if (interaction.commandName === "source-code") {
-        interaction.reply("📦 Source code:\nhttps://github.com/segervolervix-code/Segervolervix-template/tree/main/discord");
+        await interaction.reply(
+            "📦 Source code:\nhttps://github.com/segervolervix-code/Segervolervix-template/tree/main/discord"
+        );
     }
 });
 
