@@ -1,4 +1,3 @@
-// src/index.js
 import {
     Client,
     GatewayIntentBits,
@@ -7,6 +6,7 @@ import {
 } from "discord.js";
 import fetch from "node-fetch";
 import "dotenv/config";
+
 import { buildSystemPrompt } from "./systemPrompt.js";
 import { addToHistory, getHistoryForChannel } from "./history.js";
 
@@ -14,8 +14,10 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages
+    ],
+    partials: ["CHANNEL"] // Needed for DMs
 });
 
 // API endpoints
@@ -23,7 +25,7 @@ const CHAT_URL = "https://segervolervix.space/api/chat";
 const IMAGE_URL = "https://segervolervix.space/api/imagine";
 const API_KEY = process.env.API_KEY;
 
-// Random questions for /random-question
+// Random questions
 const QUESTIONS = [
     "If you could learn any skill instantly, what would it be?",
     "What’s a technology you think will change the world soon?",
@@ -36,14 +38,18 @@ client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}`);
 });
 
-// Mention-based chat
+//
+// ─────────────────────────────────────────────
+//   MENTION-BASED CHAT
+// ─────────────────────────────────────────────
+//
 client.on(Events.MessageCreate, async (msg) => {
     if (msg.author.bot) return;
 
-    // Always track history
+    // Track history for all messages
     addToHistory(msg);
 
-    // Only respond if the bot is mentioned
+    // Only respond if bot is mentioned
     if (!msg.mentions.has(client.user)) return;
 
     const prompt = msg.content.replace(`<@${client.user.id}>`, "").trim();
@@ -83,11 +89,64 @@ client.on(Events.MessageCreate, async (msg) => {
     }
 });
 
-// Slash commands
+//
+// ─────────────────────────────────────────────
+//   DM AUTO-CHAT SUPPORT
+// ─────────────────────────────────────────────
+//
+client.on(Events.MessageCreate, async (msg) => {
+    if (msg.author.bot) return;
+
+    // Only trigger in DMs
+    if (msg.channel.type !== 1) return; // 1 = DMChannel
+
+    const text = msg.content.trim();
+    if (!text) return;
+
+    addToHistory(msg);
+    const history = getHistoryForChannel(msg.channel.id);
+
+    const systemPrompt = buildSystemPrompt(client, msg, history);
+
+    const thinking = await msg.channel.send("💬 Thinking...");
+
+    try {
+        const res = await fetch(CHAT_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${API_KEY}`
+            },
+            body: JSON.stringify({
+                system: systemPrompt,
+                message: text
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.reply) {
+            await thinking.edit(`**AI:** ${data.reply}`);
+        } else {
+            await thinking.edit("❌ API returned an invalid response.");
+        }
+    } catch (err) {
+        console.error("DM Chat API error:", err);
+        await thinking.edit("❌ Network error while contacting the AI.");
+    }
+});
+
+//
+// ─────────────────────────────────────────────
+//   SLASH COMMANDS
+// ─────────────────────────────────────────────
+//
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
+    //
     // /imagine
+    //
     if (interaction.commandName === "imagine") {
         const prompt = interaction.options.getString("prompt", true);
 
@@ -120,13 +179,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     }
 
+    //
     // /random-question
+    //
     if (interaction.commandName === "random-question") {
         const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
         await interaction.reply(`🎲 **Random Question:**\n${q}`);
     }
 
+    //
     // /source-code
+    //
     if (interaction.commandName === "source-code") {
         await interaction.reply(
             "📦 Source code:\nhttps://github.com/segervolervix-code/Segervolervix-template/tree/main/discord"
