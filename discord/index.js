@@ -1,10 +1,19 @@
+/**
+ * Discord Bot
+ * Compatible with discord.js v14
+ */
+
 import {
     Client,
     GatewayIntentBits,
     AttachmentBuilder,
-    Events
+    Events,
+    ChannelType,
+    PermissionsBitField
 } from "discord.js";
+
 import fetch from "node-fetch";
+import fs from "fs";
 import "dotenv/config";
 
 import { buildSystemPrompt } from "./systemPrompt.js";
@@ -17,15 +26,52 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages
     ],
-    partials: ["CHANNEL"] // Needed for DMs
+    partials: ["CHANNEL"]
 });
 
-// API endpoints
+// ==============================
+// API
+// ==============================
+
 const CHAT_URL = "https://segervolervix.space/api/chat";
 const IMAGE_URL = "https://segervolervix.space/api/imagine";
 const API_KEY = process.env.API_KEY;
 
-// Random questions
+// ==============================
+// CHANNEL STORAGE (AUTO CREATE)
+// ==============================
+
+const CHANNELS_FILE = "./saved-channels.json";
+let activeChannels = [];
+
+try {
+    if (!fs.existsSync(CHANNELS_FILE)) {
+        fs.writeFileSync(CHANNELS_FILE, JSON.stringify([], null, 2));
+    }
+    activeChannels = JSON.parse(fs.readFileSync(CHANNELS_FILE));
+} catch (err) {
+    console.error("Channel file error:", err.message);
+    activeChannels = [];
+}
+
+function saveChannels() {
+    try {
+        fs.writeFileSync(CHANNELS_FILE, JSON.stringify(activeChannels, null, 2));
+    } catch (err) {
+        console.error("Save error:", err.message);
+    }
+}
+
+// ==============================
+// SWEAR FILTER (AI ONLY)
+// ==============================
+
+const SWEAR_WORDS = ["fuck", "shit", "bitch", "asshole"];
+
+// ==============================
+// RANDOM QUESTIONS
+// ==============================
+
 const QUESTIONS = [
     "If you could learn any skill instantly, what would it be?",
     "What’s a technology you think will change the world soon?",
@@ -46,47 +92,25 @@ client.once(Events.ClientReady, () => {
 client.on(Events.MessageCreate, async (msg) => {
     if (msg.author.bot) return;
 
-    // Track history for all messages
     addToHistory(msg);
 
-    // Only respond if bot is mentioned
+    // Activated channel = respond to everything
+    if (activeChannels.includes(msg.channel.id)) {
+        return handleChat(msg, msg.content);
+    }
+
+    // Mention only
     if (!msg.mentions.has(client.user)) return;
 
-    const prompt = msg.content.replace(`<@${client.user.id}>`, "").trim();
+    const prompt = msg.content
+        .replace(new RegExp(`<@!?${client.user.id}>`), "")
+        .trim();
+
     if (!prompt) {
-        return msg.reply("Please include a message after mentioning me.");
+        return msg.reply("Error");
     }
 
-    const history = getHistoryForChannel(msg.channel.id);
-    const systemPrompt = buildSystemPrompt(client, msg, history);
-
-    const thinkingMsg = await msg.channel.send("💬 Thinking...");
-
-    try {
-        const res = await fetch(CHAT_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${API_KEY}`
-            },
-            body: JSON.stringify({
-                system: systemPrompt,
-                message: prompt
-            })
-        });
-
-        const data = await res.json();
-
-        if (data.reply) {
-            await thinkingMsg.delete().catch(() => {});
-            await msg.reply(`**AI:** ${data.reply}`);
-        } else {
-            await thinkingMsg.edit("❌ API returned an invalid response.");
-        }
-    } catch (err) {
-        console.error("Chat API error:", err);
-        await thinkingMsg.edit("❌ Network error while contacting the AI.");
-    }
+    return handleChat(msg, prompt);
 });
 
 //
@@ -97,20 +121,29 @@ client.on(Events.MessageCreate, async (msg) => {
 client.on(Events.MessageCreate, async (msg) => {
     if (msg.author.bot) return;
 
-    // Only trigger in DMs
-    if (msg.channel.type !== 1) return; // 1 = DMChannel
+    if (msg.channel.type !== ChannelType.DM) return;
 
     const text = msg.content.trim();
     if (!text) return;
 
     addToHistory(msg);
-    const history = getHistoryForChannel(msg.channel.id);
 
+    return handleChat(msg, text);
+});
+
+//
+// ─────────────────────────────────────────────
+//   CHAT HANDLER (TYPING + FILTERS)
+// ─────────────────────────────────────────────
+//
+async function handleChat(msg, text) {
+    const history = getHistoryForChannel(msg.channel.id);
     const systemPrompt = buildSystemPrompt(client, msg, history);
 
-    const thinking = await msg.channel.send("💬 Thinking...");
-
     try {
+        // Typing indicator instead of "Thinking..."
+        await msg.channel.sendTyping();
+
         const res = await fetch(CHAT_URL, {
             method: "POST",
             headers: {
@@ -123,18 +156,39 @@ client.on(Events.MessageCreate, async (msg) => {
             })
         });
 
-        const data = await res.json();
-
-        if (data.reply) {
-            await thinking.edit(`**AI:** ${data.reply}`);
-        } else {
-            await thinking.edit("❌ API returned an invalid response.");
+        let data;
+        try {
+            data = await res.json();
+        } catch (err) {
+            console.error("JSON error:", err.message);
+            return msg.reply("Error");
         }
+
+        if (!data.reply) {
+            console.error("Bad response:", data);
+            return msg.reply("Error");
+        }
+
+        let reply = data.reply;
+
+        // Redact mass mentions
+        reply = reply
+            .replace(/@everyone/g, "(Redacted)")
+            .replace(/@here/g, "(Redacted)");
+
+        // AI-only swear filter
+        const lower = reply.toLowerCase();
+        if (SWEAR_WORDS.some(w => lower.includes(w))) {
+            reply = "⚠️ Response blocked due to inappropriate content.";
+        }
+
+        await msg.reply(`**AI:** ${reply}`);
+
     } catch (err) {
-        console.error("DM Chat API error:", err);
-        await thinking.edit("❌ Network error while contacting the AI.");
+        console.error("Chat error:", err.message);
+        await msg.reply("Error");
     }
-});
+}
 
 //
 // ─────────────────────────────────────────────
@@ -144,9 +198,33 @@ client.on(Events.MessageCreate, async (msg) => {
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    //
-    // /imagine
-    //
+    // /activate
+    if (interaction.commandName === "activate") {
+        if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+            return interaction.reply({ content: "Error", ephemeral: true });
+        }
+
+        if (!activeChannels.includes(interaction.channel.id)) {
+            activeChannels.push(interaction.channel.id);
+            saveChannels();
+        }
+
+        await interaction.reply("Activated.");
+    }
+
+    // /deactivate
+    if (interaction.commandName === "deactivate") {
+        if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+            return interaction.reply({ content: "Error", ephemeral: true });
+        }
+
+        activeChannels = activeChannels.filter(id => id !== interaction.channel.id);
+        saveChannels();
+
+        await interaction.reply("Deactivated.");
+    }
+
+    // /imagine (unchanged except error handling)
     if (interaction.commandName === "imagine") {
         const prompt = interaction.options.getString("prompt", true);
 
@@ -162,34 +240,41 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 body: JSON.stringify({ prompt })
             });
 
-            const data = await res.json();
+            let data;
+            try {
+                data = await res.json();
+            } catch (err) {
+                console.error("Image JSON error:", err.message);
+                return interaction.editReply("Error");
+            }
 
             if (!data.link) {
-                return interaction.editReply("❌ No image link returned.");
+                console.error("No link:", data);
+                return interaction.editReply("Error");
             }
 
             const imgRes = await fetch(data.link);
             const buffer = Buffer.from(await imgRes.arrayBuffer());
             const file = new AttachmentBuilder(buffer, { name: "image.png" });
 
-            await interaction.editReply({ content: "🖼️ Image generated:", files: [file] });
+            await interaction.editReply({
+                content: "🖼️ Image generated:",
+                files: [file]
+            });
+
         } catch (err) {
-            console.error("Image API error:", err);
-            await interaction.editReply("❌ Failed to generate image.");
+            console.error("Image error:", err.message);
+            await interaction.editReply("Error");
         }
     }
 
-    //
-    // /random-question
-    //
+    // /random-question (unchanged)
     if (interaction.commandName === "random-question") {
         const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
         await interaction.reply(`🎲 **Random Question:**\n${q}`);
     }
 
-    //
-    // /source-code
-    //
+    // /source-code (unchanged)
     if (interaction.commandName === "source-code") {
         await interaction.reply(
             "📦 Source code:\nhttps://github.com/segervolervix-code/Segervolervix-template/tree/main/discord"
