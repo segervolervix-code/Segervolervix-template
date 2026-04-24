@@ -3,279 +3,449 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Console</title>
-
+<title>NergeAI</title>
 <style>
-    :root {
-        --bg: #05060a;
-        --panel: #0d0f16;
-        --accent: #00f7ff;
-        --accent2: #8b5cf6;
-        --error: #ff4d6d;
-        --warn: #ffd166;
-        --border: #1a1d29;
-        --glow: 0 0 12px rgba(0, 247, 255, 0.4);
-        --font: "JetBrains Mono", monospace;
-    }
+:root {
+  --bg: #0d0f14;
+  --surface: #13161d;
+  --surface2: #1a1e28;
+  --border: #1f2330;
+  --accent: #4e8ef7;
+  --accent2: #7b5af7;
+  --text: #dde1ed;
+  --text-muted: #6b7290;
+  --text-dim: #383e52;
+  --user-bg: #162040;
+  --user-border: #1e3070;
+  --ai-bg: #111420;
+  --ai-border: #1f2330;
+  --r: 12px;
+  --r-sm: 7px;
+  --success: #3ee89a;
+  --warn: #f7c94f;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Courier New',monospace;font-size:14px;overflow:hidden;}
+body{display:flex;flex-direction:column;}
 
-    body {
-        margin: 0;
-        background: radial-gradient(circle at top, #0a0c14, #05060a 70%);
-        color: #e0e0e0;
-        font-family: var(--font);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding-top: 40px;
-        letter-spacing: 0.4px;
-    }
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;height:52px;
+  border-bottom:1px solid var(--border);
+  background:var(--bg);flex-shrink:0;
+}
+#brand{display:flex;align-items:center;gap:10px;}
+#logo{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-family:Georgia,serif;font-weight:bold;font-size:15px;color:#fff;
+}
+#brand-name{font-family:Georgia,serif;font-size:16px;letter-spacing:.3px;}
+#brand-name b{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+#topbar-right{display:flex;align-items:center;gap:8px;}
+.tbtn{
+  background:none;border:1px solid var(--border);color:var(--text-muted);
+  font-family:'Courier New',monospace;font-size:11px;padding:4px 11px;
+  border-radius:var(--r-sm);cursor:pointer;transition:all .15s;
+}
+.tbtn:hover{border-color:var(--accent);color:var(--accent);}
+select#model-sel{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  font-family:'Courier New',monospace;font-size:11px;padding:4px 8px;
+  border-radius:var(--r-sm);cursor:pointer;outline:none;
+}
+select#model-sel:focus{border-color:var(--accent);}
+select#model-sel option{background:var(--surface2);}
 
-    .terminal {
-        width: 700px;
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        box-shadow: 0 0 25px rgba(0, 247, 255, 0.08), inset 0 0 20px rgba(255,255,255,0.03);
-        overflow: hidden;
-        margin-bottom: 30px;
-        backdrop-filter: blur(6px);
-    }
+#chat{flex:1;overflow-y:auto;padding:24px 0 4px;display:flex;flex-direction:column;gap:4px;}
+#chat::-webkit-scrollbar{width:4px;}
+#chat::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 
-    .output {
-        height: 240px;
-        overflow-y: auto;
-        padding: 20px;
-        font-size: 14px;
-        line-height: 1.6;
-        border-bottom: 1px solid var(--border);
-        white-space: pre-wrap;
-        text-shadow: 0 0 4px rgba(0, 247, 255, 0.3);
-    }
+.row{display:flex;padding:0 24px;animation:fu .2s ease;}
+@keyframes fu{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.row.user{justify-content:flex-end;}
+.row.ai{justify-content:flex-start;}
 
-    .input-area {
-        display: flex;
-        padding: 14px;
-        background: #0a0c14;
-        gap: 12px;
-        border-top: 1px solid #11131a;
-    }
+.wrap{max-width:70%;display:flex;flex-direction:column;gap:3px;}
+.row.user .wrap{align-items:flex-end;}
+.row.ai .wrap{align-items:flex-start;}
 
-    input {
-        flex: 1;
-        background: #05060a;
-        border: 1px solid var(--border);
-        color: var(--accent);
-        padding: 12px;
-        font-family: var(--font);
-        border-radius: 6px;
-        box-shadow: inset 0 0 10px rgba(0, 247, 255, 0.1);
-        transition: 0.2s;
-    }
+.lbl{font-size:10px;color:var(--text-dim);letter-spacing:.7px;text-transform:uppercase;padding:0 3px;}
 
-    input:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 10px rgba(0, 247, 255, 0.4);
-    }
+.bubble{
+  padding:11px 15px;border-radius:var(--r);
+  line-height:1.65;word-break:break-word;white-space:pre-wrap;font-size:13.5px;
+}
+.row.user .bubble{background:var(--user-bg);border:1px solid var(--user-border);border-bottom-right-radius:3px;}
+.row.ai .bubble{background:var(--ai-bg);border:1px solid var(--ai-border);border-bottom-left-radius:3px;}
+.bubble img{max-width:100%;border-radius:9px;margin-top:9px;display:block;border:1px solid var(--border);}
 
-    button {
-        padding: 12px 18px;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-family: var(--font);
-        transition: 0.25s;
-        font-weight: bold;
-        letter-spacing: 0.5px;
-    }
+.disclaimer{
+  display:block;margin-top:8px;padding:5px 10px;font-size:10.5px;color:var(--warn);
+  background:rgba(247,201,79,.07);border:1px solid rgba(247,201,79,.18);border-radius:5px;
+}
 
-    #chat-btn {
-        background: var(--accent2);
-        color: #fff;
-        box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
-    }
+.actions{display:flex;gap:5px;margin-top:3px;}
+.abtn{
+  background:none;border:1px solid var(--border);color:var(--text-dim);
+  font-family:'Courier New',monospace;font-size:10px;padding:2px 8px;
+  border-radius:5px;cursor:pointer;transition:all .13s;
+}
+.abtn:hover{border-color:var(--accent);color:var(--accent);}
+.abtn.ok{border-color:var(--success);color:var(--success);}
 
-    #chat-btn:hover {
-        box-shadow: 0 0 18px rgba(139, 92, 246, 0.7);
-    }
+.mbadge{
+  font-size:9.5px;color:var(--accent);
+  background:rgba(78,142,247,.09);border:1px solid rgba(78,142,247,.18);
+  border-radius:4px;padding:2px 7px;margin-top:3px;display:inline-block;
+}
 
-    #img-btn {
-        background: var(--accent);
-        color: #000;
-        box-shadow: 0 0 10px rgba(0, 247, 255, 0.4);
-    }
+.dots{display:inline-flex;gap:4px;align-items:center;padding:9px 13px;}
+.dots span{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:bk 1.2s infinite;}
+.dots span:nth-child(2){animation-delay:.2s;}
+.dots span:nth-child(3){animation-delay:.4s;}
+@keyframes bk{0%,80%,100%{opacity:.2;transform:scale(.8);}40%{opacity:1;transform:scale(1);}}
 
-    #img-btn:hover {
-        box-shadow: 0 0 18px rgba(0, 247, 255, 0.7);
-    }
+#empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  flex:1;gap:8px;color:var(--text-dim);text-align:center;padding:40px;pointer-events:none;
+}
+#empty-logo{
+  width:50px;height:50px;border-radius:14px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-family:Georgia,serif;font-size:22px;font-weight:bold;color:#fff;margin-bottom:4px;
+}
+#empty-title{font-family:Georgia,serif;font-size:18px;color:var(--text-muted);}
+#empty-sub{font-size:12px;max-width:280px;line-height:1.6;}
 
-    button:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-        box-shadow: none;
-    }
+#bottom{padding:12px 24px 16px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0;}
+#input-row{display:flex;gap:8px;align-items:flex-end;}
+#msg-input{
+  flex:1;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r);color:var(--text);font-family:'Courier New',monospace;
+  font-size:13.5px;padding:11px 14px;resize:none;outline:none;
+  min-height:44px;max-height:130px;line-height:1.5;transition:border-color .15s;
+}
+#msg-input:focus{border-color:var(--accent);}
+#msg-input::placeholder{color:var(--text-dim);}
+#send{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none;border-radius:var(--r);color:#fff;
+  font-family:'Courier New',monospace;font-size:13px;font-weight:bold;
+  padding:0 20px;height:44px;cursor:pointer;
+  transition:opacity .15s,transform .1s;white-space:nowrap;
+  box-shadow:0 3px 16px rgba(78,142,247,.2);
+}
+#send:hover{opacity:.87;transform:translateY(-1px);}
+#send:active{transform:translateY(0);}
+#send:disabled{opacity:.4;cursor:not-allowed;transform:none;}
 
-    .view-area {
-        width: 700px;
-        height: 450px;
-        background: #000;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        box-shadow: inset 0 0 25px rgba(0, 247, 255, 0.08);
-    }
-
-    #display-img {
-        max-width: 100%;
-        max-height: 100%;
-        display: none;
-        border-radius: 6px;
-    }
-
-    .msg-line {
-        margin-bottom: 6px;
-        animation: fadeIn 0.3s ease-out;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(3px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    footer {
-        margin-top: 25px;
-        opacity: 0.6;
-        font-size: 14px;
-        color: #9aa0b8;
-        text-shadow: 0 0 6px rgba(0, 247, 255, 0.3);
-    }
+#overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+  z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(5px);
+}
+#overlay.on{display:flex;}
+#modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  max-width:500px;width:90%;max-height:70vh;overflow-y:auto;
+  padding:26px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.55);animation:fu .18s ease;
+}
+#modal::-webkit-scrollbar{width:4px;}
+#modal::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+#modal-x{
+  position:absolute;top:14px;right:14px;background:none;
+  border:1px solid var(--border);border-radius:5px;color:var(--text-muted);
+  font-size:13px;width:26px;height:26px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .13s;
+}
+#modal-x:hover{border-color:#f74f4f;color:#f74f4f;}
+#modal-t{font-family:Georgia,serif;font-size:17px;margin-bottom:13px;}
+#modal-b{color:var(--text-muted);line-height:1.75;font-size:12.5px;}
+#modal-b h3{color:var(--text);font-size:12px;margin:14px 0 5px;text-transform:uppercase;letter-spacing:.5px;}
+#modal-b p{margin-bottom:9px;}
 </style>
 </head>
-
 <body>
 
-<div class="terminal">
-    <div id="output" class="output">[SYSTEM] Console initialized. Secure boundary active.</div>
-
-    <div class="input-area">
-        <input id="prompt" placeholder="Type a command..." onkeypress="if(event.key==='Enter') sendChat()">
-        <button id="chat-btn" onclick="sendChat()">Chat</button>
-        <button id="img-btn" onclick="generateImage()">Imagine</button>
-    </div>
+<div id="topbar">
+  <div id="brand">
+    <div id="logo">N</div>
+    <div id="brand-name">Nerge<b>AI</b></div>
+  </div>
+  <div id="topbar-right">
+    <select id="model-sel">
+      <option value="nergeenolix">nergeenolix</option>
+      <option value="llama-3.3-70b-instruct">llama-3.3-70b-instruct</option>
+      <option value="nergeenolix_1.0">nergeenolix_1.0</option>
+      <option value="llama-4-scout">llama-4-scout</option>
+      <option value="llama-3-8b-instruct">llama-3-8b-instruct</option>
+      <option value="nergeenolix_1.0beta">nergeenolix_1.0beta</option>
+      <option value="nergeenolix_rp">nergeenolix_rp</option>
+      <option value="lawyer_ai">lawyer_ai</option>
+      <option value="web_searcher">web_searcher</option>
+      <option value="nergeenolix_coder">nergeenolix_coder</option>
+    </select>
+    <button class="tbtn" id="clr-btn">Clear</button>
+    <button class="tbtn" id="pp-btn">Privacy</button>
+    <button class="tbtn" id="tos-btn">Terms</button>
+  </div>
 </div>
 
-<div class="view-area">
-    <img id="display-img" alt="Generated Image">
+<div id="chat">
+  <div id="empty">
+    <div id="empty-logo">N</div>
+    <div id="empty-title">NergeAI</div>
+    <div id="empty-sub">Intelligent assistant powered by Segervolervix. Ask anything — I can search the web or generate images when needed.</div>
+  </div>
+</div>
+
+<div id="bottom">
+  <div id="input-row">
+    <textarea id="msg-input" placeholder="Message NergeAI..." rows="1"></textarea>
+    <button id="send">Send</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div id="modal">
+    <button id="modal-x">&#x2715;</button>
+    <div id="modal-t"></div>
+    <div id="modal-b"></div>
+  </div>
 </div>
 
 <script>
-console.log("⚠️ Never paste unknown code into the console.");
-
 const CHAT_URL = "https://segervolervix.space/api/chat";
 const IMAGE_URL = "https://segervolervix.space/api/imagine";
 const API_KEY = "YOUR_API_KEY";
+const FALLBACK_MODEL = "llama-3.3-70b-instruct";
+const LS_KEY = "nergeai_history";
 
-const out = document.getElementById('output');
-const displayImg = document.getElementById('display-img');
-const inputField = document.getElementById('prompt');
+const SYSTEM_PROMPT = `You are NergeAI, a capable AI assistant hosted on the Segervolervix platform (segervolervix.space) — an AI lab built by Legendarymasterpro, focused on Discord-first AI development.
 
-let isBusy = false;
-let currentObjectUrl = null;
+You are helpful, concise, and intelligent. You assist with coding, writing, research, and general questions.
 
-function setUIState(busy) {
-    isBusy = busy;
-    inputField.disabled = busy;
-    document.getElementById('chat-btn').disabled = busy;
-    document.getElementById('img-btn').disabled = busy;
+You have two special abilities. When you need them, include one of these commands on its own line in your reply:
+
+search_web("your query here") — searches the web for current or real-time information.
+imagine_prompt("your description here") — generates an image from a text description.
+
+Use search_web when the user asks about recent events, current facts, or anything you are uncertain about. Use imagine_prompt when the user requests an image or visual. You decide when to use these — the user does not control them. Use only one command per reply if needed.`;
+
+const PP_HTML = `<h3>Privacy Policy</h3><p>Last updated: 2026</p><p>NergeAI is powered by the Segervolervix platform. We are committed to protecting your privacy.</p><h3>Data We Collect</h3><p>Messages are processed to generate responses. Chat history is saved locally in your browser via localStorage and is never sent to external servers beyond the Segervolervix API.</p><h3>API Keys</h3><p>The API key is hardcoded in this application and is not exposed to end users.</p><h3>Third-Party Services</h3><p>All AI responses are processed by Segervolervix infrastructure. By using this service you agree to their data handling practices.</p><h3>Cookies</h3><p>This application does not use tracking cookies.</p><h3>Contact</h3><p>Visit segervolervix.space or join the Discord server for any privacy concerns.</p>`;
+const TOS_HTML = `<h3>Terms of Service</h3><p>Last updated: 2026</p><p>By using NergeAI, you agree to the following terms.</p><h3>Acceptable Use</h3><p>You may not use this service to generate harmful, illegal, or abusive content. Misuse will result in access being revoked.</p><h3>Accuracy</h3><p>AI responses may contain errors. Do not rely solely on this service for medical, legal, financial, or safety-critical decisions.</p><h3>Image Generation</h3><p>Images must not depict illegal content. You are responsible for all prompts submitted.</p><h3>Service Availability</h3><p>Segervolervix reserves the right to modify or discontinue the service at any time.</p><h3>Governing Terms</h3><p>These terms are governed by the broader Segervolervix platform policies at segervolervix.space.</p>`;
+
+const chatEl = document.getElementById("chat");
+const emptyEl = document.getElementById("empty");
+const msgInput = document.getElementById("msg-input");
+const sendBtn = document.getElementById("send");
+const modelSel = document.getElementById("model-sel");
+
+let history = [];
+let busy = false;
+
+function saveHistory() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(history)); } catch(e) {}
 }
 
-function appendMessage(text, color) {
-    const div = document.createElement('div');
-    div.className = 'msg-line';
-    div.style.color = color;
-    div.textContent = text;
-    out.appendChild(div);
-    out.scrollTop = out.scrollHeight;
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved) || !saved.length) return;
+    history = saved;
+    saved.forEach(m => renderMsg(m.role === "user" ? "user" : "ai", m.content, m.imgUrl || null, m.model || null, false));
+  } catch(e) {}
 }
 
-async function sendChat() {
-    if (isBusy) return;
-    const val = inputField.value.trim();
-    if (!val) return;
+function hideEmpty() { emptyEl.style.display = "none"; }
 
-    setUIState(true);
-    appendMessage("> " + val, "#8b5cf6");
-    inputField.value = "";
+function renderMsg(role, text, imgUrl, model, scroll) {
+  hideEmpty();
+  const row = document.createElement("div");
+  row.className = "row " + role;
+  const wrap = document.createElement("div");
+  wrap.className = "wrap";
+  const lbl = document.createElement("div");
+  lbl.className = "lbl";
+  lbl.textContent = role === "user" ? "You" : "NergeAI";
+  wrap.appendChild(lbl);
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  if (imgUrl) {
+    const img = document.createElement("img");
+    img.src = imgUrl;
+    img.alt = "Generated image";
+    bubble.appendChild(img);
+  }
+  if (role === "ai" && model === "lawyer_ai") {
+    const d = document.createElement("span");
+    d.className = "disclaimer";
+    d.textContent = "\u26a0 This is AI-generated content and does not constitute legal advice. Please consult a qualified lawyer for any legal matters.";
+    bubble.appendChild(d);
+  }
+  wrap.appendChild(bubble);
+  if (role === "ai" && model) {
+    const badge = document.createElement("div");
+    badge.className = "mbadge";
+    badge.textContent = model;
+    wrap.appendChild(badge);
+  }
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  const cp = document.createElement("button");
+  cp.className = "abtn";
+  cp.textContent = "Copy";
+  cp.onclick = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      cp.textContent = "Copied";
+      cp.classList.add("ok");
+      setTimeout(() => { cp.textContent = "Copy"; cp.classList.remove("ok"); }, 1600);
+    });
+  };
+  actions.appendChild(cp);
+  wrap.appendChild(actions);
+  row.appendChild(wrap);
+  chatEl.appendChild(row);
+  if (scroll !== false) chatEl.scrollTop = chatEl.scrollHeight;
+}
 
-    try {
-        const res = await fetch(CHAT_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${API_KEY}`
-            },
-            body: JSON.stringify({ message: val })
-        });
+function addThinking() {
+  hideEmpty();
+  const row = document.createElement("div");
+  row.className = "row ai";
+  row.id = "thinking";
+  const wrap = document.createElement("div");
+  wrap.className = "wrap";
+  const lbl = document.createElement("div");
+  lbl.className = "lbl";
+  lbl.textContent = "NergeAI";
+  wrap.appendChild(lbl);
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
+  wrap.appendChild(bubble);
+  row.appendChild(wrap);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
 
-        const data = await res.json();
-        if (data.reply) appendMessage(data.reply, "#00f7ff");
-        else appendMessage("[ERROR] Invalid response", "#ff4d6d");
+function removeThinking() {
+  const t = document.getElementById("thinking");
+  if (t) t.remove();
+}
 
-    } catch (err) {
-        appendMessage("[ERROR] Network failure", "#ff4d6d");
+function extractCmd(text, cmd) {
+  const m = text.match(new RegExp(cmd + '\\("([^"]+)"\\)'));
+  return m ? m[1] : null;
+}
+
+function stripCmds(text) {
+  return text.replace(/search_web\("[^"]*"\)\n?/g, "").replace(/imagine_prompt\("[^"]*"\)\n?/g, "").trim();
+}
+
+async function doImage(prompt) {
+  const res = await fetch(IMAGE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + API_KEY },
+    body: JSON.stringify({ prompt, api_key: API_KEY })
+  });
+  const d = await res.json();
+  return d.url || d.image_url || d.link || null;
+}
+
+async function send() {
+  if (busy) return;
+  const text = msgInput.value.trim();
+  if (!text) return;
+  const model = modelSel.value;
+  msgInput.value = "";
+  msgInput.style.height = "auto";
+  busy = true;
+  sendBtn.disabled = true;
+  renderMsg("user", text, null, null, true);
+  history.push({ role: "user", content: text });
+  saveHistory();
+  addThinking();
+  try {
+    const res = await fetch(CHAT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + API_KEY },
+      body: JSON.stringify({
+        user_message: text,
+        ai_model: model,
+        fallback_model: FALLBACK_MODEL,
+        system_prompt: SYSTEM_PROMPT,
+        search_mode: false,
+        history: history.slice(0, -1).map(m => ({ role: m.role, content: m.content })),
+        api_key: API_KEY
+      })
+    });
+    const data = await res.json();
+    const raw = data.ai_message || data.response || data.message || data.reply || "[No response]";
+    const searchQ = extractCmd(raw, "search_web");
+    const imagineQ = extractCmd(raw, "imagine_prompt");
+    let finalText = stripCmds(raw) || raw;
+    let imgUrl = null;
+    if (searchQ) {
+      const sRes = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + API_KEY },
+        body: JSON.stringify({
+          user_message: searchQ,
+          ai_model: model,
+          fallback_model: FALLBACK_MODEL,
+          system_prompt: SYSTEM_PROMPT,
+          search_mode: true,
+          api_key: API_KEY
+        })
+      });
+      const sData = await sRes.json();
+      finalText = sData.ai_message || sData.response || sData.message || finalText;
     }
-
-    setUIState(false);
-    inputField.focus();
-}
-
-async function generateImage() {
-    if (isBusy) return;
-    const val = inputField.value.trim();
-    if (!val) return;
-
-    setUIState(true);
-    appendMessage("* Generating image...", "#ffd166");
-    inputField.value = "";
-
-    try {
-        const res = await fetch(IMAGE_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${API_KEY}`
-            },
-            body: JSON.stringify({ prompt: val })
-        });
-
-        const data = await res.json();
-
-        if (data.link) {
-            const imgRes = await fetch(data.link);
-            const blob = await imgRes.blob();
-
-            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-
-            currentObjectUrl = URL.createObjectURL(blob);
-            displayImg.src = currentObjectUrl;
-            displayImg.style.display = "block";
-
-            appendMessage("# Image loaded successfully", "#00f7ff");
-        } else {
-            appendMessage("[ERROR] No image link returned", "#ff4d6d");
-        }
-
-    } catch (err) {
-        appendMessage("[ERROR] Image generation failed", "#ff4d6d");
+    if (imagineQ) {
+      imgUrl = await doImage(imagineQ).catch(() => null);
+      if (!finalText) finalText = "Here is your generated image:";
     }
-
-    setUIState(false);
-    inputField.focus();
+    removeThinking();
+    renderMsg("ai", finalText, imgUrl, model, true);
+    history.push({ role: "assistant", content: finalText, imgUrl, model });
+    saveHistory();
+  } catch(err) {
+    removeThinking();
+    renderMsg("ai", "Error: " + err.message, null, model, true);
+  }
+  busy = false;
+  sendBtn.disabled = false;
 }
+
+msgInput.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+msgInput.addEventListener("input", () => { msgInput.style.height = "auto"; msgInput.style.height = Math.min(msgInput.scrollHeight, 130) + "px"; });
+sendBtn.addEventListener("click", send);
+
+document.getElementById("clr-btn").addEventListener("click", () => {
+  history = [];
+  saveHistory();
+  chatEl.innerHTML = "";
+  chatEl.appendChild(emptyEl);
+  emptyEl.style.display = "flex";
+});
+
+function openModal(title, html) {
+  document.getElementById("modal-t").textContent = title;
+  document.getElementById("modal-b").innerHTML = html;
+  document.getElementById("overlay").classList.add("on");
+}
+document.getElementById("pp-btn").addEventListener("click", () => openModal("Privacy Policy", PP_HTML));
+document.getElementById("tos-btn").addEventListener("click", () => openModal("Terms of Service", TOS_HTML));
+document.getElementById("modal-x").addEventListener("click", () => document.getElementById("overlay").classList.remove("on"));
+document.getElementById("overlay").addEventListener("click", e => { if (e.target.id === "overlay") document.getElementById("overlay").classList.remove("on"); });
+
+loadHistory();
 </script>
-
-<footer>This is a demo of segervolervix, Guidelines apply</footer>
 </body>
 </html>
