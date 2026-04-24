@@ -1,16 +1,17 @@
 package com.segervolervix.ainpc;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
 import org.bukkit.command.CommandExecutor;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Player;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.*;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.Material;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.ChatColor;
 import org.bukkit.util.Vector;
 
 import java.net.URI;
@@ -27,10 +28,9 @@ import com.google.gson.JsonSyntaxException;
 
 public class AINPCPlugin extends JavaPlugin implements CommandExecutor {
 
-    private ArmorStand npc;
+    private LivingEntity npc;
     private UUID ownerId;
-    private boolean following = false;
-    private BukkitTask followTask;
+    private BukkitTask aiTask;
     private final List<String> history = new ArrayList<>();
 
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -38,7 +38,7 @@ public class AINPCPlugin extends JavaPlugin implements CommandExecutor {
             .build();
 
     private static final String CHAT_URL = "https://segervolervix.space/api/chat";
-    private static final String API_KEY = System.getenv("API_KEY"); // or load from config
+    private static final String API_KEY = System.getenv("API_KEY");
     private static final Gson GSON = new Gson();
 
     @Override
@@ -49,98 +49,119 @@ public class AINPCPlugin extends JavaPlugin implements CommandExecutor {
 
     @Override
     public void onDisable() {
-        if (npc != null && !npc.isDead()) {
-            npc.remove();
-        }
-        if (followTask != null) {
-            followTask.cancel();
-        }
-        getLogger().info("AINPC disabled.");
+        if (npc != null && !npc.isDead()) npc.remove();
+        if (aiTask != null) aiTask.cancel();
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Only players can use this command.");
+            sender.sendMessage("Players only.");
             return true;
         }
 
         if (args.length == 0) {
-            player.sendMessage(ChatColor.YELLOW + "Usage: /npc <spawn|ask|follow|stop|remove>");
+            player.sendMessage("/npc <spawn|ask|remove>");
             return true;
         }
 
-        String sub = args[0].toLowerCase(Locale.ROOT);
-
-        switch (sub) {
-            case "spawn" -> handleSpawn(player, args);
-            case "ask" -> handleAsk(player, args);
-            case "follow" -> handleFollow(player);
-            case "stop" -> handleStop(player);
-            case "remove" -> handleRemove(player);
-            default -> player.sendMessage(ChatColor.YELLOW + "Usage: /npc <spawn|ask|follow|stop|remove>");
+        switch (args[0].toLowerCase()) {
+            case "spawn" -> spawnNPC(player, args);
+            case "ask" -> askNPC(player, args);
+            case "remove" -> removeNPC(player);
         }
 
         return true;
     }
 
-    private void handleSpawn(Player player, String[] args) {
+    private void spawnNPC(Player player, String[] args) {
         if (npc != null && !npc.isDead()) {
-            player.sendMessage(ChatColor.RED + "There is already an AI NPC in the world.");
+            player.sendMessage(ChatColor.RED + "NPC already exists.");
             return;
         }
 
-        String name = (args.length >= 2)
-                ? String.join(" ", Arrays.copyOfRange(args, 1, args.length))
-                : "AI Companion";
+        String name = args.length >= 2 ? String.join(" ", Arrays.copyOfRange(args, 1, args.length)) : "AI Companion";
 
         Location loc = player.getLocation();
         World world = loc.getWorld();
 
-        npc = world.spawn(loc, ArmorStand.class, stand -> {
-            stand.setCustomName(ChatColor.AQUA + name);
-            stand.setCustomNameVisible(true);
-            stand.setGravity(false);
-            stand.setInvisible(false);
-            stand.setBasePlate(false);
-            stand.setArms(true);
+        // Piglin Brute = neutral until provoked, good hitbox, good combat
+        PiglinBrute brute = world.spawn(loc, PiglinBrute.class, e -> {
+            e.setCustomName(ChatColor.AQUA + name);
+            e.setCustomNameVisible(true);
+            e.setImmuneToZombification(true);
+            e.setAdult();
+            e.setAI(false); // disable vanilla AI
+            e.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_SWORD));
         });
 
+        npc = brute;
         ownerId = player.getUniqueId();
         history.clear();
-        following = false;
 
-        player.sendMessage(ChatColor.GREEN + "Spawned AI NPC: " + ChatColor.AQUA + name);
-        Bukkit.broadcastMessage(ChatColor.GRAY + "[AI NPC] " + ChatColor.AQUA + name +
-                ChatColor.GRAY + " has appeared, owned by " + ChatColor.YELLOW + player.getName());
+        startAI();
+
+        player.sendMessage(ChatColor.GREEN + "Spawned AI NPC: " + name);
     }
 
-    private void handleAsk(Player player, String[] args) {
-        if (!checkNpcExists(player)) return;
+    private void startAI() {
+        if (aiTask != null) aiTask.cancel();
+
+        aiTask = Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (npc == null || npc.isDead()) return;
+
+            Player owner = Bukkit.getPlayer(ownerId);
+            if (owner == null) return;
+
+            Location npcLoc = npc.getLocation();
+            Location ownerLoc = owner.getLocation();
+
+            double dist = npcLoc.distance(ownerLoc);
+
+            // Teleport if too far
+            if (dist > 25) {
+                npc.teleport(ownerLoc);
+                return;
+            }
+
+            // Follow owner
+            if (dist > 2) {
+                Vector dir = ownerLoc.toVector().subtract(npcLoc.toVector()).normalize().multiply(0.3);
+                npc.teleport(npcLoc.add(dir));
+            }
+
+            // Attack mobs
+            for (Entity e : npc.getNearbyEntities(8, 4, 8)) {
+                if (e instanceof Monster monster) {
+                    npc.attack(monster);
+                    monster.setTarget((LivingEntity) npc);
+                    return;
+                }
+            }
+
+        }, 0L, 5L);
+    }
+
+    private void askNPC(Player player, String[] args) {
+        if (!exists(player)) return;
         if (!isOwner(player)) {
-            player.sendMessage(ChatColor.RED + "This NPC does not belong to you.");
+            player.sendMessage(ChatColor.RED + "Not your NPC.");
             return;
         }
 
         if (args.length < 2) {
-            player.sendMessage(ChatColor.YELLOW + "Usage: /npc ask <message>");
+            player.sendMessage("Usage: /npc ask <message>");
             return;
         }
 
-        String message = String.join(" ", Arrays.copyOfRange(args, 1, args.length)).trim();
-        if (message.isEmpty()) {
-            player.sendMessage(ChatColor.YELLOW + "Please provide a message.");
-            return;
-        }
-
+        String message = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
         String npcName = ChatColor.stripColor(npc.getCustomName());
-        String playerName = player.getName();
 
         addHistory("Player", message);
 
-        String systemPrompt = buildSystemPrompt(npcName, playerName);
+        String systemPrompt = buildSystemPrompt(npcName, player.getName());
 
-        player.sendMessage(ChatColor.GRAY + "[" + npcName + "] " + ChatColor.DARK_GRAY + "Thinking...");
+        player.sendMessage(ChatColor.GRAY + "[" + npcName + "] Thinking...");
 
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             try {
@@ -148,7 +169,7 @@ public class AINPCPlugin extends JavaPlugin implements CommandExecutor {
                 body.addProperty("system", systemPrompt);
                 body.addProperty("message", message);
 
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest req = HttpRequest.newBuilder()
                         .uri(URI.create(CHAT_URL))
                         .timeout(Duration.ofSeconds(30))
                         .header("Content-Type", "application/json")
@@ -156,232 +177,109 @@ public class AINPCPlugin extends JavaPlugin implements CommandExecutor {
                         .POST(HttpRequest.BodyPublishers.ofString(GSON.toJson(body), StandardCharsets.UTF_8))
                         .build();
 
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                String responseBody = response.body();
+                HttpResponse<String> res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                JsonObject json = GSON.fromJson(res.body(), JsonObject.class);
 
-                JsonObject json = GSON.fromJson(responseBody, JsonObject.class);
                 String reply = json.has("reply") ? json.get("reply").getAsString() : null;
 
-                if (reply == null || reply.isEmpty()) {
-                    sendToMainThread(() ->
-                            player.sendMessage(ChatColor.RED + "NPC failed to respond (invalid API response)."));
+                if (reply == null) {
+                    send(() -> player.sendMessage("NPC failed to respond."));
                     return;
                 }
 
-                // Try to interpret reply as JSON action
                 try {
-                    JsonObject actionObj = GSON.fromJson(reply, JsonObject.class);
-                    if (actionObj != null && actionObj.has("action")) {
-                        handleActionFromAI(player, npcName, actionObj);
+                    JsonObject action = GSON.fromJson(reply, JsonObject.class);
+                    if (action.has("action")) {
+                        handleAction(player, action);
                         return;
                     }
-                } catch (JsonSyntaxException ignored) {
-                    // Not JSON, treat as plain chat
-                }
+                } catch (JsonSyntaxException ignored) {}
 
                 String finalReply = reply;
                 addHistory("NPC", finalReply);
 
-                sendToMainThread(() -> {
-                    String formatted = ChatColor.AQUA + "[" + npcName + "] " + ChatColor.WHITE + finalReply;
-                    Bukkit.broadcastMessage(formatted);
-                });
+                send(() -> Bukkit.broadcastMessage(ChatColor.AQUA + "[" + npcName + "] " + ChatColor.WHITE + finalReply));
 
             } catch (Exception e) {
-                getLogger().warning("Error calling AI API: " + e.getMessage());
-                sendToMainThread(() ->
-                        player.sendMessage(ChatColor.RED + "NPC failed to respond (network error)."));
+                send(() -> player.sendMessage("NPC network error."));
             }
         });
     }
 
-    private void handleActionFromAI(Player owner, String npcName, JsonObject actionObj) {
-        String action = actionObj.get("action").getAsString();
+    private void handleAction(Player owner, JsonObject action) {
+        String type = action.get("action").getAsString();
 
-        switch (action) {
+        switch (type) {
             case "say" -> {
-                String msg = actionObj.has("message") ? actionObj.get("message").getAsString() : "";
-                if (!msg.isEmpty()) {
-                    addHistory("NPC", msg);
-                    sendToMainThread(() -> {
-                        String formatted = ChatColor.AQUA + "[" + npcName + "] " + ChatColor.WHITE + msg;
-                        Bukkit.broadcastMessage(formatted);
-                    });
-                }
+                String msg = action.get("message").getAsString();
+                addHistory("NPC", msg);
+                send(() -> Bukkit.broadcastMessage(ChatColor.AQUA + "[" + npc.getCustomName() + "] " + ChatColor.WHITE + msg));
             }
-            case "follow_player" -> sendToMainThread(() -> handleFollow(owner));
-            case "stop_following" -> sendToMainThread(() -> handleStop(owner));
             case "walk_to" -> {
-                if (actionObj.has("x") && actionObj.has("y") && actionObj.has("z")) {
-                    double x = actionObj.get("x").getAsDouble();
-                    double y = actionObj.get("y").getAsDouble();
-                    double z = actionObj.get("z").getAsDouble();
-                    sendToMainThread(() -> {
-                        if (npc != null && !npc.isDead()) {
-                            Location target = new Location(owner.getWorld(), x, y, z);
-                            npc.teleport(target);
-                        }
-                    });
-                }
+                double x = action.get("x").getAsDouble();
+                double y = action.get("y").getAsDouble();
+                double z = action.get("z").getAsDouble();
+                send(() -> npc.teleport(new Location(owner.getWorld(), x, y, z)));
             }
-            case "look_at_player" -> sendToMainThread(() -> {
-                if (npc != null && !npc.isDead()) {
+            case "look_at_player" -> {
+                send(() -> {
                     Location npcLoc = npc.getLocation();
                     Location ownerLoc = owner.getLocation();
                     npcLoc.setDirection(ownerLoc.toVector().subtract(npcLoc.toVector()));
                     npc.teleport(npcLoc);
-                }
-            });
-            default -> {
-                // Unknown action: ignore or log
-                getLogger().info("Unknown AI action: " + action);
+                });
             }
         }
     }
 
-    private void handleFollow(Player player) {
-        if (!checkNpcExists(player)) return;
+    private void removeNPC(Player player) {
+        if (!exists(player)) return;
         if (!isOwner(player)) {
-            player.sendMessage(ChatColor.RED + "This NPC does not belong to you.");
+            player.sendMessage("Not your NPC.");
             return;
         }
 
-        if (following) {
-            player.sendMessage(ChatColor.YELLOW + "The NPC is already following you.");
-            return;
-        }
-
-        following = true;
-        player.sendMessage(ChatColor.GREEN + "The NPC will now follow you.");
-
-        if (followTask != null) {
-            followTask.cancel();
-        }
-
-        followTask = Bukkit.getScheduler().runTaskTimer(this, () -> {
-            if (npc == null || npc.isDead()) {
-                following = false;
-                if (followTask != null) followTask.cancel();
-                return;
-            }
-
-            Player owner = Bukkit.getPlayer(ownerId);
-            if (owner == null || !owner.isOnline()) {
-                following = false;
-                if (followTask != null) followTask.cancel();
-                return;
-            }
-
-            Location npcLoc = npc.getLocation();
-            Location ownerLoc = owner.getLocation();
-
-            if (!npcLoc.getWorld().equals(ownerLoc.getWorld())) {
-                npc.teleport(ownerLoc);
-                return;
-            }
-
-            double distance = npcLoc.distance(ownerLoc);
-            if (distance > 10) {
-                npc.teleport(ownerLoc);
-                return;
-            }
-
-            if (distance > 2) {
-                Vector direction = ownerLoc.toVector().subtract(npcLoc.toVector()).normalize().multiply(0.4);
-                Location newLoc = npcLoc.clone().add(direction);
-                newLoc.setDirection(ownerLoc.toVector().subtract(newLoc.toVector()));
-                npc.teleport(newLoc);
-            }
-
-        }, 0L, 5L); // every 5 ticks
-    }
-
-    private void handleStop(Player player) {
-        if (!checkNpcExists(player)) return;
-        if (!isOwner(player)) {
-            player.sendMessage(ChatColor.RED + "This NPC does not belong to you.");
-            return;
-        }
-
-        if (!following) {
-            player.sendMessage(ChatColor.YELLOW + "The NPC is not following you.");
-            return;
-        }
-
-        following = false;
-        if (followTask != null) {
-            followTask.cancel();
-            followTask = null;
-        }
-
-        player.sendMessage(ChatColor.GREEN + "The NPC stopped following you.");
-    }
-
-    private void handleRemove(Player player) {
-        if (!checkNpcExists(player)) return;
-        if (!isOwner(player)) {
-            player.sendMessage(ChatColor.RED + "This NPC does not belong to you.");
-            return;
-        }
-
-        if (npc != null && !npc.isDead()) {
-            npc.remove();
-        }
+        npc.remove();
         npc = null;
         ownerId = null;
-        following = false;
-        if (followTask != null) {
-            followTask.cancel();
-            followTask = null;
-        }
-        history.clear();
 
-        player.sendMessage(ChatColor.GREEN + "Your AI NPC has been removed.");
+        if (aiTask != null) aiTask.cancel();
+
+        player.sendMessage("NPC removed.");
     }
 
-    private boolean checkNpcExists(Player player) {
+    private boolean exists(Player p) {
         if (npc == null || npc.isDead()) {
-            player.sendMessage(ChatColor.RED + "There is no AI NPC currently spawned.");
+            p.sendMessage("No NPC exists.");
             return false;
         }
         return true;
     }
 
-    private boolean isOwner(Player player) {
-        return ownerId != null && ownerId.equals(player.getUniqueId());
+    private boolean isOwner(Player p) {
+        return ownerId != null && ownerId.equals(p.getUniqueId());
     }
 
-    private void addHistory(String speaker, String content) {
-        history.add(speaker + ": " + content);
-        if (history.size() > 6) { // keep last 6 lines
-            history.remove(0);
-        }
+    private void addHistory(String who, String msg) {
+        history.add(who + ": " + msg);
+        if (history.size() > 6) history.remove(0);
     }
 
     private String buildSystemPrompt(String npcName, String playerName) {
         StringBuilder sb = new StringBuilder();
-        sb.append("You are ").append(npcName).append(", an AI companion NPC inside Minecraft.\n");
-        sb.append("You are currently talking to player: ").append(playerName).append(".\n");
+        sb.append("You are ").append(npcName).append(", an AI companion.\n");
+        sb.append("Talking to ").append(playerName).append(".\n");
         sb.append("Recent conversation:\n");
-        if (history.isEmpty()) {
-            sb.append("(No previous messages)\n");
-        } else {
-            for (String line : history) {
-                sb.append(line).append("\n");
-            }
-        }
-        sb.append("\n");
-        sb.append("You must respond ONLY in JSON, with one of these actions:\n");
-        sb.append("{\"action\":\"say\",\"message\":\"text to say in chat\"}\n");
-        sb.append("{\"action\":\"follow_player\"}\n");
-        sb.append("{\"action\":\"stop_following\"}\n");
-        sb.append("{\"action\":\"walk_to\",\"x\":<number>,\"y\":<number>,\"z\":<number>}\n");
+        if (history.isEmpty()) sb.append("(none)\n");
+        else history.forEach(line -> sb.append(line).append("\n"));
+        sb.append("\nRespond ONLY in JSON:\n");
+        sb.append("{\"action\":\"say\",\"message\":\"text\"}\n");
+        sb.append("{\"action\":\"walk_to\",\"x\":0,\"y\":0,\"z\":0}\n");
         sb.append("{\"action\":\"look_at_player\"}\n");
-        sb.append("Do not include any extra text outside the JSON.\n");
         return sb.toString();
     }
 
-    private void sendToMainThread(Runnable runnable) {
-        Bukkit.getScheduler().runTask(this, runnable);
+    private void send(Runnable r) {
+        Bukkit.getScheduler().runTask(this, r);
     }
 }
