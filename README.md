@@ -1,1 +1,2 @@
-Try our code anywhere
+Host your own segervolervix bot
+
