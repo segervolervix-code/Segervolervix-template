@@ -118,11 +118,7 @@ public class AINPCPlugin extends JavaPlugin implements CommandExecutor {
 
             double dist = npcLoc.distance(ownerLoc);
 
-            // Teleport if too far
-            if (dist > 25) {
-                npc.teleport(ownerLoc);
-                return;
-            }
+         
 
             // Follow owner
             if (dist > 2) {
