@@ -1,0 +1,8 @@
+Package: ai-chat
+Version: 1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Your Name <you@example.com>
+Description: Simple GTK AI Chat App
+ A lightweight desktop AI chat application using GTK4 and a remote AI API.
