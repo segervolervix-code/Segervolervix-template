@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "PromptPocket",
+  "version": "1.0",
+  "description": "A compact popup to chat with the Nergeenolix AI model.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "PromptPocket"
+  },
+  "permissions": ["storage"]
+}
