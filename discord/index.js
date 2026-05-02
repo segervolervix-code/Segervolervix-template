@@ -66,7 +66,7 @@ function saveChannels() {
 // SWEAR FILTER (AI ONLY)
 // ==============================
 
-const SWEAR_WORDS = ["fuck", "shit", "bitch", "asshole"];
+const SWEAR_WORDS = ["fuck", "shit", "bitch", "asshole", "porn", "pubic", "penis" ];
 
 // ==============================
 // RANDOM QUESTIONS
