@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Translator</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #eef1f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .translator-box {
+      width: 600px;
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 150px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      resize: none;
+      font-size: 15px;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: #2563eb;
+    }
+
+    select {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #94a3b8;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="translator-box">
+
+    <div class="row">
+      <select id="languageSelect">
+        <option value="English">English</option>
+        <option value="Spanish">Spanish</option>
+        <option value="French">French</option>
+        <option value="German">German</option>
+        <option value="Italian">Italian</option>
+        <option value="Portuguese">Portuguese</option>
+        <option value="Russian">Russian</option>
+        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+        <option value="Japanese">Japanese</option>
+        <option value="Korean">Korean</option>
+        <option value="Arabic">Arabic</option>
+        <option value="Hindi">Hindi</option>
+        <option value="Bengali">Bengali</option>
+        <option value="Urdu">Urdu</option>
+        <option value="Turkish">Turkish</option>
+        <option value="Vietnamese">Vietnamese</option>
+        <option value="Thai">Thai</option>
+        <option value="Polish">Polish</option>
+        <option value="Dutch">Dutch</option>
+        <option value="Swedish">Swedish</option>
+        <option value="Norwegian">Norwegian</option>
+        <option value="Danish">Danish</option>
+        <option value="Finnish">Finnish</option>
+        <option value="Greek">Greek</option>
+        <option value="Czech">Czech</option>
+        <option value="Slovak">Slovak</option>
+        <option value="Hungarian">Hungarian</option>
+        <option value="Romanian">Romanian</option>
+        <option value="Bulgarian">Bulgarian</option>
+        <option value="Ukrainian">Ukrainian</option>
+        <option value="Serbian">Serbian</option>
+        <option value="Croatian">Croatian</option>
+        <option value="Bosnian">Bosnian</option>
+        <option value="Hebrew">Hebrew</option>
+        <option value="Indonesian">Indonesian</option>
+        <option value="Malay">Malay</option>
+        <option value="Filipino">Filipino</option>
+        <option value="Swahili">Swahili</option>
+        <option value="Zulu">Zulu</option>
+        <option value="Afrikaans">Afrikaans</option>
+        <option value="Persian (Farsi)">Persian (Farsi)</option>
+        <option value="Pashto">Pashto</option>
+        <option value="Amharic">Amharic</option>
+        <option value="Tamil">Tamil</option>
+        <option value="Telugu">Telugu</option>
+        <option value="Kannada">Kannada</option>
+        <option value="Malayalam">Malayalam</option>
+        <option value="Marathi">Marathi</option>
+        <option value="Gujarati">Gujarati</option>
+        <option value="Punjabi">Punjabi</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <textarea id="inputText" placeholder="Type text to translate..."></textarea>
+    </div>
+
+    <div class="row">
+      <button id="translateBtn">Translate</button>
+    </div>
+
+    <div class="row">
+      <textarea id="outputText" placeholder="Translation appears here..." readonly></textarea>
+    </div>
+
+  </div>
+
+  <script>
+    const CHAT_URL = "https://segervolervix.space/api/chat";
+    const API_KEY = "YOUR_API_KEY";
+
+    const inputText = document.getElementById("inputText");
+    const outputText = document.getElementById("outputText");
+    const translateBtn = document.getElementById("translateBtn");
+    const languageSelect = document.getElementById("languageSelect");
+
+    function buildSystemPrompt(text, lang) {
+      return (
+        "You are a translation engine. " +
+        "ONLY output the translation. " +
+        "No explanations. No extra text. " +
+        "Translate into: " + lang + ". " +
+        "User message: \"" + text + "\"."
+      );
+    }
+
+    async function translate() {
+      const text = inputText.value.trim();
+      if (!text) return;
+
+      translateBtn.disabled = true;
+      outputText.value = "Translating...";
+
+      const lang = languageSelect.value;
+      const systemPrompt = buildSystemPrompt(text, lang);
+
+      try {
+        const response = await fetch(CHAT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${API_KEY}`
+          },
+          body: JSON.stringify({
+            ai_model: "nergeenolix",
+            system_prompt: systemPrompt,
+            user_message: text
+          })
+        });
+
+        const data = await response.json();
+        outputText.value = data.ai_message || "No translation returned.";
+
+      } catch (err) {
+        outputText.value = "Error contacting translation server.";
+      }
+
+      translateBtn.disabled = false;
+    }
+
+    translateBtn.addEventListener("click", translate);
+  </script>
+
+</body>
+</html>
