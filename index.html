@@ -1,68 +1,145 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>GitHub Repo Embed</title>
+  <title>GitHub Repo Explorer</title>
 
   <style>
     body {
-      font-family: Arial;
       background: #0d1117;
       color: white;
-      padding: 40px;
-    }
-
-    .repo-card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 12px;
+      font-family: Arial;
       padding: 20px;
-      width: 400px;
     }
 
-    .repo-card h2 {
-      margin-top: 0;
+    h1 {
+      margin-bottom: 10px;
     }
 
-    .repo-card a {
-      color: #58a6ff;
-      text-decoration: none;
-    }
-
-    .stats {
-      margin-top: 15px;
+    #path {
+      margin-bottom: 20px;
       color: #8b949e;
+    }
+
+    .item {
+      padding: 10px;
+      border-bottom: 1px solid #30363d;
+      cursor: pointer;
+    }
+
+    .item:hover {
+      background: #161b22;
+    }
+
+    .folder {
+      color: #58a6ff;
+      font-weight: bold;
+    }
+
+    .file {
+      color: #c9d1d9;
+    }
+
+    pre {
+      background: #161b22;
+      padding: 15px;
+      overflow-x: auto;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+
+    button {
+      margin-bottom: 15px;
+      padding: 8px 12px;
+      cursor: pointer;
     }
   </style>
 </head>
 
 <body>
 
-  <div class="repo-card" id="repo">
-    Loading repo...
-  </div>
+<h1>GitHub Repo Explorer</h1>
 
-  <script>
-    fetch("https://api.github.com/repos/segervolervix-code/segervolervix-template")
-      .then(response => response.json())
-      .then(data => {
+<button onclick="goBack()">⬅ Back</button>
 
-        document.getElementById("repo").innerHTML = `
-          <h2>
-            <a href="${data.html_url}" target="_blank">
-              ${data.full_name}
-            </a>
-          </h2>
+<div id="path"></div>
 
-          <p>${data.description}</p>
+<div id="files"></div>
 
-          <div class="stats">
-            ⭐ ${data.stargazers_count}
-            •
-            🍴 ${data.forks_count}
-          </div>
-        `;
-      });
-  </script>
+<pre id="viewer"></pre>
+
+<script>
+const owner = "segervolervix-code";
+const repo = "segervolervix-template";
+
+let currentPath = "";
+
+async function loadFolder(path = "") {
+
+  currentPath = path;
+
+  document.getElementById("path").innerText =
+    "/" + path;
+
+  document.getElementById("viewer").textContent = "";
+
+  const url =
+    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const container = document.getElementById("files");
+  container.innerHTML = "";
+
+  data.forEach(item => {
+
+    const div = document.createElement("div");
+    div.className = "item";
+
+    if (item.type === "dir") {
+
+      div.innerHTML =
+        `📁 <span class="folder">${item.name}</span>`;
+
+      div.onclick = () => {
+        loadFolder(item.path);
+      };
+
+    } else {
+
+      div.innerHTML =
+        `📄 <span class="file">${item.name}</span>`;
+
+      div.onclick = () => {
+        openFile(item.download_url);
+      };
+    }
+
+    container.appendChild(div);
+
+  });
+}
+
+async function openFile(url) {
+
+  const res = await fetch(url);
+  const text = await res.text();
+
+  document.getElementById("viewer").textContent = text;
+}
+
+function goBack() {
+
+  if (!currentPath) return;
+
+  const parts = currentPath.split("/");
+  parts.pop();
+
+  loadFolder(parts.join("/"));
+}
+
+loadFolder();
+</script>
 
 </body>
 </html>
