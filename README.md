@@ -1,2 +1,1 @@
-Host your own segervolervix bot
-
+bring segervolervix to any platform you choose
