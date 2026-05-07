@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scanner</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace; [span_3](start_span)/*[span_3](end_span) */
+            background: #0d0f14; [span_4](start_span)/*[span_4](end_span) */
+            color: #dde1ed; [span_5](start_span)/*[span_5](end_span) */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 450px;
+            background: #13161d; [span_6](start_span)/*[span_6](end_span) */
+            padding: 30px;
+            border-radius: 12px; [span_7](start_span)/*[span_7](end_span) */
+            border: 1px solid #1f2330; [span_8](start_span)/*[span_8](end_span) */
+            text-align: center;
+        }
+        input {
+            width: 100%;
+            padding: 11px 14px; [span_9](start_span)/*[span_9](end_span) */
+            margin-bottom: 20px;
+            background: #1a1e28; [span_10](start_span)/*[span_10](end_span) */
+            border: 1px solid #1f2330; [span_11](start_span)/*[span_11](end_span) */
+            color: #dde1ed;
+            border-radius: 7px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #4e8ef7, #7b5af7); [span_12](start_span)/*[span_12](end_span) */
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 3px 16px rgba(78,142,247,.2); [span_13](start_span)/*[span_13](end_span) */
+        }
+        button:disabled { opacity: 0.4; }
+        #output {
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 12px;
+            display: none;
+            background: #111420; [span_14](start_span)/*[span_14](end_span) */
+            border: 1px solid #1f2330; [span_15](start_span)/*[span_15](end_span) */
+            font-size: 1.1rem;
+            color: #f7c94f; [span_16](start_span)/*[span_16](end_span) */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>URL Scanner</h2>
+    <input id="urlInput" type="text" placeholder="https://...">
+    <button id="scanBtn">Analyze</button>
+    <div id="output"></div>
+</div>
+
+<script>
+    const CHAT_URL = "https://segervolervix.space/api/chat"; [span_17](start_span)[span_18](start_span)/*[span_17](end_span)[span_18](end_span) */
+    const API_KEY = "YOUR_API_KEY";
+
+    document.getElementById("scanBtn").onclick = async () => {
+        const input = document.getElementById("urlInput");
+        const output = document.getElementById("output");
+        const btn = document.getElementById("scanBtn");
+
+        const url = input.value.trim();
+        if (!url) return;
+
+        btn.disabled = true;
+        output.style.display = "block";
+        output.textContent = "Scanning...";
+
+        try {
+            const res = await fetch(CHAT_URL, {
+                [span_19](start_span)method: "POST", /*[span_19](end_span) */
+                headers: {
+                    [span_20](start_span)"Content-Type": "application/json", /*[span_20](end_span) */
+                    [span_21](start_span)"Authorization": `Bearer ${API_KEY}` /*[span_21](end_span) */
+                },
+                body: JSON.stringify({
+                    ai_model: "url_checker",
+                    user_message: url
+                })
+            });
+
+            const data = await res.json(); [span_22](start_span)/*[span_22](end_span) */
+            output.textContent = data.ai_message || data.reply || "No response"; [span_23](start_span)[span_24](start_span)/*[span_23](end_span)[span_24](end_span) */
+        } catch (e) {
+            output.textContent = "Error contacting server."; [span_25](start_span)/*[span_25](end_span) */
+        } finally {
+            btn.disabled = false;
+        }
+    };
+</script>
+
+</body>
+</html>
