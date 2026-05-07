@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GitHub Repo Embed</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #0d1117;
+      color: white;
+      padding: 40px;
+    }
+
+    .repo-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      width: 400px;
+    }
+
+    .repo-card h2 {
+      margin-top: 0;
+    }
+
+    .repo-card a {
+      color: #58a6ff;
+      text-decoration: none;
+    }
+
+    .stats {
+      margin-top: 15px;
+      color: #8b949e;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="repo-card" id="repo">
+    Loading repo...
+  </div>
+
+  <script>
+    fetch("https://api.github.com/repos/segervolervix-code/segervolervix-template")
+      .then(response => response.json())
+      .then(data => {
+
+        document.getElementById("repo").innerHTML = `
+          <h2>
+            <a href="${data.html_url}" target="_blank">
+              ${data.full_name}
+            </a>
+          </h2>
+
+          <p>${data.description}</p>
+
+          <div class="stats">
+            ⭐ ${data.stargazers_count}
+            •
+            🍴 ${data.forks_count}
+          </div>
+        `;
+      });
+  </script>
+
+</body>
+</html>
