@@ -133,7 +133,7 @@ function stripCmds(text) {
 async function doImage(prompt) {
   const res = await fetch(IMAGE_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + API_KEY },
+    headers: { "Content-Type": "application/json", "Authorization": + API_KEY },
     body: JSON.stringify({ prompt, api_key: API_KEY })
   });
   const d = await res.json();
