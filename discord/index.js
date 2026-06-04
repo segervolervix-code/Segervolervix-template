@@ -63,10 +63,31 @@ function saveChannels() {
 }
 
 // ==============================
+// MESSAGE COUNTER
+// ==============================
+
+const MESSAGE_COUNT_FILE = "./messagecount.txt";
+
+if (!fs.existsSync(MESSAGE_COUNT_FILE)) {
+    fs.writeFileSync(MESSAGE_COUNT_FILE, "0");
+}
+
+function incrementMessageCount() {
+    try {
+        let count = parseInt(fs.readFileSync(MESSAGE_COUNT_FILE, "utf8"));
+        if (isNaN(count)) count = 0;
+        count++;
+        fs.writeFileSync(MESSAGE_COUNT_FILE, count.toString());
+    } catch (err) {
+        console.error("Message count error:", err.message);
+    }
+}
+
+// ==============================
 // SWEAR FILTER (AI ONLY)
 // ==============================
 
-const SWEAR_WORDS = ["fuck", "shit", "bitch", "asshole", "porn", "pubic", "penis" ];
+const SWEAR_WORDS = ["fuck", "shit", "bitch", "asshole", "porn", "pubic", "penis"];
 
 // ==============================
 // RANDOM QUESTIONS
@@ -84,71 +105,57 @@ client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}`);
 });
 
-//
-// ─────────────────────────────────────────────
-//   MENTION-BASED CHAT
-// ─────────────────────────────────────────────
-//
+// ─────────────────────────────
+// MESSAGE HANDLING
+// ─────────────────────────────
+
 client.on(Events.MessageCreate, async (msg) => {
     if (msg.author.bot) return;
 
     addToHistory(msg);
 
-    // Activated channel = respond to everything
     if (activeChannels.includes(msg.channel.id)) {
         return handleChat(msg, msg.content);
     }
 
-    // Mention only
     if (!msg.mentions.has(client.user)) return;
 
     const prompt = msg.content
         .replace(new RegExp(`<@!?${client.user.id}>`), "")
         .trim();
 
-    if (!prompt) {
-        return msg.reply("Error");
-    }
+    if (!prompt) return msg.reply("Error");
 
     return handleChat(msg, prompt);
 });
 
-//
-// ─────────────────────────────────────────────
-//   DM AUTO-CHAT SUPPORT
-// ─────────────────────────────────────────────
-//
 client.on(Events.MessageCreate, async (msg) => {
     if (msg.author.bot) return;
-
     if (msg.channel.type !== ChannelType.DM) return;
 
     const text = msg.content.trim();
     if (!text) return;
 
     addToHistory(msg);
-
     return handleChat(msg, text);
 });
 
-//
-// ─────────────────────────────────────────────
-//   CHAT HANDLER (TYPING + FILTERS)
-// ─────────────────────────────────────────────
-//
+// ─────────────────────────────
+// CHAT HANDLER
+// ─────────────────────────────
+
 async function handleChat(msg, text) {
     const history = getHistoryForChannel(msg.channel.id);
     const systemPrompt = buildSystemPrompt(client, msg, history);
 
     try {
-        // Typing indicator instead of "Thinking..."
         await msg.channel.sendTyping();
 
         const res = await fetch(CHAT_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${API_KEY}`
+                "Authorization": `${API_KEY}`
             },
             body: JSON.stringify({
                 system: systemPrompt,
@@ -160,29 +167,31 @@ async function handleChat(msg, text) {
         try {
             data = await res.json();
         } catch (err) {
-            console.error("JSON error:", err.message);
             return msg.reply("Error");
         }
 
-        if (!data.reply) {
-            console.error("Bad response:", data);
-            return msg.reply("Error");
-        }
+        if (!data.reply) return msg.reply("Error");
 
         let reply = data.reply;
 
-        // Redact mass mentions
         reply = reply
             .replace(/@everyone/g, "(Redacted)")
             .replace(/@here/g, "(Redacted)");
 
-        // AI-only swear filter
         const lower = reply.toLowerCase();
         if (SWEAR_WORDS.some(w => lower.includes(w))) {
             reply = "⚠️ Response blocked due to inappropriate content.";
         }
 
-        await msg.reply(`**AI:** ${reply}`);
+        const prefix = "**AI:** ";
+        const maxLength = 2000 - prefix.length;
+
+        if (reply.length > maxLength) {
+            reply = reply.slice(0, maxLength - 3) + "...";
+        }
+
+        await msg.reply(`${prefix}${reply}`);
+        incrementMessageCount();
 
     } catch (err) {
         console.error("Chat error:", err.message);
@@ -190,15 +199,13 @@ async function handleChat(msg, text) {
     }
 }
 
-//
-// ─────────────────────────────────────────────
-//   SLASH COMMANDS
-// ─────────────────────────────────────────────
-//
+// ─────────────────────────────
+// SLASH COMMANDS
+// ─────────────────────────────
+
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    // /activate
     if (interaction.commandName === "activate") {
         if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
             return interaction.reply({ content: "Error", ephemeral: true });
@@ -210,9 +217,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         await interaction.reply("Activated.");
+        incrementMessageCount();
     }
 
-    // /deactivate
     if (interaction.commandName === "deactivate") {
         if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
             return interaction.reply({ content: "Error", ephemeral: true });
@@ -222,9 +229,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         saveChannels();
 
         await interaction.reply("Deactivated.");
+        incrementMessageCount();
     }
 
-    // /imagine (unchanged except error handling)
     if (interaction.commandName === "imagine") {
         const prompt = interaction.options.getString("prompt", true);
 
@@ -240,21 +247,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 body: JSON.stringify({ prompt })
             });
 
-            let data;
-            try {
-                data = await res.json();
-            } catch (err) {
-                console.error("Image JSON error:", err.message);
-                return interaction.editReply("Error");
-            }
-
-            if (!data.link) {
-                console.error("No link:", data);
-                return interaction.editReply("Error");
-            }
-
+            const data = await res.json();
             const imgRes = await fetch(data.link);
             const buffer = Buffer.from(await imgRes.arrayBuffer());
+
             const file = new AttachmentBuilder(buffer, { name: "image.png" });
 
             await interaction.editReply({
@@ -262,23 +258,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 files: [file]
             });
 
+            incrementMessageCount();
+
         } catch (err) {
-            console.error("Image error:", err.message);
             await interaction.editReply("Error");
         }
     }
 
-    // /random-question (unchanged)
     if (interaction.commandName === "random-question") {
         const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
         await interaction.reply(`🎲 **Random Question:**\n${q}`);
+        incrementMessageCount();
     }
 
-    // /source-code (unchanged)
     if (interaction.commandName === "source-code") {
         await interaction.reply(
             "📦 Source code:\nhttps://github.com/segervolervix-code/Segervolervix-template/tree/main/discord"
         );
+        incrementMessageCount();
     }
 });
 
