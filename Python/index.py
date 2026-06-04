@@ -9,7 +9,7 @@ API_KEY = "YOUR_API_KEY"
 
 def send_message(message):
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"{API_KEY}",
         "Content-Type": "application/json"
     }
 
