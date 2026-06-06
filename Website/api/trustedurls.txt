@@ -1,0 +1,2 @@
+https://yourdomain.com
+http://localhost:3000
