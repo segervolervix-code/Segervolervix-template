@@ -17,17 +17,13 @@ const trusted = fs.readFileSync(path.resolve("trustedurls.txt"), "utf8")
   .map(s => s.trim())
   .filter(Boolean);
 
-const rate = new Map();
-
-const IMAGE_URL =
-  env.SEGERVOLERVIX_IMAGE_URL ||
-  "https://segervolervix.space/api/imagine";
-
-const API_KEY = env.SEGERVOLERVIX_API_KEY;
+const hits = new Map();
 
 function getIP(req) {
-  return req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-         req.socket?.remoteAddress;
+  return (
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress
+  );
 }
 
 function allowedRef(req) {
@@ -35,32 +31,53 @@ function allowedRef(req) {
   return trusted.some(t => ref.startsWith(t));
 }
 
+function rateLimit(ip, limit, windowMs) {
+  const now = Date.now();
+  const data = hits.get(ip);
+
+  if (!data) {
+    hits.set(ip, { count: 1, start: now });
+    return true;
+  }
+
+  if (now - data.start > windowMs) {
+    hits.set(ip, { count: 1, start: now });
+    return true;
+  }
+
+  data.count++;
+
+  if (data.count > limit) return false;
+
+  return true;
+}
+
+const IMAGE_URL =
+  env.SEGERVOLERVIX_IMAGE_URL ||
+  "https://segervolervix.space/api/imagine";
+
+const API_KEY = env.SEGERVOLERVIX_API_KEY;
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+  if (!allowedRef(req)) return res.status(403).json({ error: "Forbidden" });
+
   const ip = getIP(req);
-  const now = Date.now();
 
-  const r = rate.get(ip);
-  if (r && now < r) {
-    return res.status(429).json({ error: "Rate limited" });
-  }
-
-  if (!allowedRef(req)) {
-    return res.status(403).json({ error: "Forbidden" });
+  if (!rateLimit(ip, 10, 10000)) {
+    return res.status(429).json({ error: "Too many requests" });
   }
 
   try {
-    const r2 = await axios.post(IMAGE_URL, req.body, {
+    const r = await axios.post(IMAGE_URL, req.body, {
       headers: {
         "Content-Type": "application/json",
         "Authorization": API_KEY
       }
     });
 
-    rate.set(ip, now + 60000);
-
-    res.status(r2.status).json(r2.data);
+    res.status(r.status).json(r.data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
