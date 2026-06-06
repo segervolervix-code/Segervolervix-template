@@ -1,6 +1,6 @@
 
-const CHAT_URL = "https://segervolervix.space/api/chat";
-const IMAGE_URL = "https://segervolervix.space/api/imagine";
+const CHAT_URL = "/api/chat";
+const IMAGE_URL = "/api/imagine";
 const API_KEY = "ignore_moved_to_env";
 const FALLBACK_MODEL = "llama-3.3-70b-instruct";
 const LS_KEY = "nergeai_history";
