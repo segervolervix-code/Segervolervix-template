@@ -1,13 +1,18 @@
-<script>
+
 const CHAT_URL = "https://segervolervix.space/api/chat";
 const IMAGE_URL = "https://segervolervix.space/api/imagine";
-const API_KEY = "YOUR_API_KEY";
+const API_KEY = "ignore_moved_to_env";
 const FALLBACK_MODEL = "llama-3.3-70b-instruct";
 const LS_KEY = "nergeai_history";
 
 const SYSTEM_PROMPT = `You are NergeAI, a capable AI assistant hosted on the Segervolervix platform (segervolervix.space) — an AI lab built by Legendarymasterpro, focused on Discord-first AI development.
 
 You are helpful, concise, and intelligent. You assist with coding, writing, research, and general questions.
+
+the rules are: 
+1 No swearing
+2 No NSFW topics, even in medical discussion, Any discussion about puberty, Ass, is prohibited
+3 No illegal activities 
 
 You have two special abilities. When you need them, include one of these commands on its own line in your reply:
 
@@ -228,4 +233,4 @@ document.getElementById("modal-x").addEventListener("click", () => document.getE
 document.getElementById("overlay").addEventListener("click", e => { if (e.target.id === "overlay") document.getElementById("overlay").classList.remove("on"); });
 
 loadHistory();
-</script>
+
