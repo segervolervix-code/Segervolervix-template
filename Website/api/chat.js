@@ -1,21 +1,15 @@
 import fs from "fs";
 import path from "path";
+import axios from "axios";
 
 function loadEnv(file = "keys/.env") {
   const env = {};
   const content = fs.readFileSync(path.resolve(process.cwd(), file), "utf8");
 
   for (const line of content.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-
-    const idx = trimmed.indexOf("=");
-    if (idx === -1) continue;
-
-    const key = trimmed.slice(0, idx).trim();
-    const value = trimmed.slice(idx + 1).trim();
-
-    env[key] = value;
+    const i = line.indexOf("=");
+    if (i === -1) continue;
+    env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
   }
 
   return env;
@@ -27,25 +21,21 @@ const CHAT_URL =
   ENV.SEGERVOLERVIX_CHAT_URL ||
   "https://segervolervix.space/api/chat";
 
+const API_KEY = ENV.SEGERVOLERVIX_API_KEY;
+
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const response = await fetch(CHAT_URL, {
-      method: "POST",
+    const r = await axios.post(CHAT_URL, req.body, {
       headers: {
         "Content-Type": "application/json",
-        "Authorization": req.headers.authorization || ""
-      },
-      body: JSON.stringify(req.body) 
+        Authorization: `Bearer ${API_KEY}`
+      }
     });
 
-    const data = await response.json();
-
-    return res.status(response.status).json(data);
+    res.status(r.status).json(r.data);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 }
